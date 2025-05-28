@@ -12,8 +12,10 @@ from utils import get_mem0_client
 
 load_dotenv()
 
-# Default user ID for memory operations
-DEFAULT_USER_ID = "user"
+# Default user ID for memory operations. This can be overridden by providing
+# a ``user_id`` argument to the tools or by setting the ``DEFAULT_USER_ID``
+# environment variable.
+DEFAULT_USER_ID = os.getenv("DEFAULT_USER_ID", "user")
 
 # Create a dataclass for our application context
 @dataclass
@@ -51,7 +53,7 @@ mcp = FastMCP(
 )        
 
 @mcp.tool()
-async def save_memory(ctx: Context, text: str) -> str:
+async def save_memory(ctx: Context, text: str, user_id: str = DEFAULT_USER_ID) -> str:
     """Save information to your long-term memory.
 
     This tool is designed to store any type of information that might be useful in the future.
@@ -60,30 +62,32 @@ async def save_memory(ctx: Context, text: str) -> str:
     Args:
         ctx: The MCP server provided context which includes the Mem0 client
         text: The content to store in memory, including any relevant details and context
+        user_id: Identifier for the user whose memory should be updated
     """
     try:
         mem0_client = ctx.request_context.lifespan_context.mem0_client
         messages = [{"role": "user", "content": text}]
-        mem0_client.add(messages, user_id=DEFAULT_USER_ID)
+        mem0_client.add(messages, user_id=user_id)
         return f"Successfully saved memory: {text[:100]}..." if len(text) > 100 else f"Successfully saved memory: {text}"
     except Exception as e:
         return f"Error saving memory: {str(e)}"
 
 @mcp.tool()
-async def get_all_memories(ctx: Context) -> str:
+async def get_all_memories(ctx: Context, user_id: str = DEFAULT_USER_ID) -> str:
     """Get all stored memories for the user.
     
     Call this tool when you need complete context of all previously memories.
 
     Args:
         ctx: The MCP server provided context which includes the Mem0 client
+        user_id: Identifier for the user whose memories should be returned
 
     Returns a JSON formatted list of all stored memories, including when they were created
     and their content. Results are paginated with a default of 50 items per page.
     """
     try:
         mem0_client = ctx.request_context.lifespan_context.mem0_client
-        memories = mem0_client.get_all(user_id=DEFAULT_USER_ID)
+        memories = mem0_client.get_all(user_id=user_id)
         if isinstance(memories, dict) and "results" in memories:
             flattened_memories = [memory["memory"] for memory in memories["results"]]
         else:
@@ -93,7 +97,7 @@ async def get_all_memories(ctx: Context) -> str:
         return f"Error retrieving memories: {str(e)}"
 
 @mcp.tool()
-async def search_memories(ctx: Context, query: str, limit: int = 3) -> str:
+async def search_memories(ctx: Context, query: str, limit: int = 3, user_id: str = DEFAULT_USER_ID) -> str:
     """Search memories using semantic search.
 
     This tool should be called to find relevant information from your memory. Results are ranked by relevance.
@@ -103,10 +107,11 @@ async def search_memories(ctx: Context, query: str, limit: int = 3) -> str:
         ctx: The MCP server provided context which includes the Mem0 client
         query: Search query string describing what you're looking for. Can be natural language.
         limit: Maximum number of results to return (default: 3)
+        user_id: Identifier for the user whose memories should be searched
     """
     try:
         mem0_client = ctx.request_context.lifespan_context.mem0_client
-        memories = mem0_client.search(query, user_id=DEFAULT_USER_ID, limit=limit)
+        memories = mem0_client.search(query, user_id=user_id, limit=limit)
         if isinstance(memories, dict) and "results" in memories:
             flattened_memories = [memory["memory"] for memory in memories["results"]]
         else:
