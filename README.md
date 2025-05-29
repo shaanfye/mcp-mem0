@@ -22,6 +22,14 @@ The server provides three essential memory management tools:
 2. **`get_all_memories`**: Retrieve all stored memories for comprehensive context
 3. **`search_memories`**: Find relevant memories using semantic search
 
+All tools accept a `memory_type` parameter so you can keep separate collections
+for regular memories and notes. The default collection is `mem0_memories` and
+passing `memory_type="notes"` uses the `mem0_notes` collection.
+
+`save_memory` also supports two optional metadata fields: `message_number` and
+`date`. These values are stored with each memory along with the user `id` so
+that conversations can be reconstructed later.
+
 ## Prerequisites
 
 - Python 3.12+
