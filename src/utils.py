@@ -1,138 +1,93 @@
-from mem0 import Memory
+"""Utility functions for working with the Mem0 Cloud API."""
+
+from dataclasses import dataclass
 import os
+import httpx
 
-# Custom instructions for memory processing
-# These aren't being used right now but Mem0 does support adding custom prompting
-# for handling memory retrieval and processing.
-CUSTOM_INSTRUCTIONS = """
-Extract the Following Information:  
 
-- Key Information: Identify and save the most important details.
-- Context: Capture the surrounding context to understand the memory's relevance.
-- Connections: Note any relationships to other topics or memories.
-- Importance: Highlight why this information might be valuable in the future.
-- Source: Record where this information came from when applicable.
-"""
+@dataclass
+class AsyncMemoryClient:
+    """Minimal async client for Mem0 Cloud."""
 
-def get_mem0_client(collection_name: str = "mem0_memories"):
-    # Get LLM provider and configuration
-    llm_provider = os.getenv('LLM_PROVIDER')
-    llm_api_key = os.getenv('LLM_API_KEY')
-    llm_model = os.getenv('LLM_CHOICE')
-    embedding_model = os.getenv('EMBEDDING_MODEL_CHOICE')
-    
-    # Initialize config dictionary
-    config = {}
-    
-    # Configure LLM based on provider
-    if llm_provider == 'openai' or llm_provider == 'openrouter':
-        config["llm"] = {
-            "provider": "openai",
-            "config": {
-                "model": llm_model,
-                "temperature": 0.2,
-                "max_tokens": 2000,
-            }
+    api_key: str
+    base_url: str = "https://api.mem0.ai"
+
+    def __post_init__(self) -> None:
+        self._client = httpx.AsyncClient(
+            base_url=self.base_url,
+            headers={"Authorization": f"Bearer {self.api_key}"},
+        )
+
+    async def add(
+        self,
+        messages: list[dict],
+        *,
+        user_id: str,
+        category: str = "memory",
+        metadata: dict | None = None,
+    ) -> dict:
+        payload = {
+            "user_id": user_id,
+            "category": category,
+            "messages": messages,
+            "metadata": metadata,
         }
-        
-        # Set API key in environment if not already set
-        if llm_api_key and not os.environ.get("OPENAI_API_KEY"):
-            os.environ["OPENAI_API_KEY"] = llm_api_key
-            
-        # For OpenRouter, set the specific API key
-        if llm_provider == 'openrouter' and llm_api_key:
-            os.environ["OPENROUTER_API_KEY"] = llm_api_key
-    
-    elif llm_provider == 'ollama':
-        config["llm"] = {
-            "provider": "ollama",
-            "config": {
-                "model": llm_model,
-                "temperature": 0.2,
-                "max_tokens": 2000,
-            }
+        resp = await self._client.post("/memory", json=payload)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def get_all(
+        self,
+        *,
+        user_id: str,
+        category: str = "memory",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        params = {
+            "user_id": user_id,
+            "category": category,
+            "limit": limit,
+            "offset": offset,
         }
-        
-        # Set base URL for Ollama if provided
-        llm_base_url = os.getenv('LLM_BASE_URL')
-        if llm_base_url:
-            config["llm"]["config"]["ollama_base_url"] = llm_base_url
-    
-    # Configure embedder based on provider
-    if llm_provider == 'openai':
-        config["embedder"] = {
-            "provider": "openai",
-            "config": {
-                "model": embedding_model or "text-embedding-3-small",
-                "embedding_dims": 1536  # Default for text-embedding-3-small
-            }
+        resp = await self._client.get("/memory", params=params)
+        resp.raise_for_status()
+        return resp.json()
+
+    async def search(
+        self,
+        query: str,
+        *,
+        user_id: str,
+        category: str = "memory",
+        limit: int = 3,
+    ) -> dict:
+        params = {
+            "query": query,
+            "user_id": user_id,
+            "category": category,
+            "limit": limit,
         }
-        
-        # Set API key in environment if not already set
-        if llm_api_key and not os.environ.get("OPENAI_API_KEY"):
-            os.environ["OPENAI_API_KEY"] = llm_api_key
-    
-    elif llm_provider == 'ollama':
-        config["embedder"] = {
-            "provider": "ollama",
-            "config": {
-                "model": embedding_model or "nomic-embed-text",
-                "embedding_dims": 768  # Default for nomic-embed-text
-            }
-        }
-        
-        # Set base URL for Ollama if provided
-        embedding_base_url = os.getenv('LLM_BASE_URL')
-        if embedding_base_url:
-            config["embedder"]["config"]["ollama_base_url"] = embedding_base_url
-    
-    # Configure Supabase vector store
-    config["vector_store"] = {
-        "provider": "supabase",
-        "config": {
-            "connection_string": os.environ.get('DATABASE_URL', ''),
-            "collection_name": collection_name,
-            "embedding_model_dims": 1536 if llm_provider == "openai" else 768,
-        }
-    }
+        resp = await self._client.get("/memory/search", params=params)
+        resp.raise_for_status()
+        return resp.json()
 
-    # config["custom_fact_extraction_prompt"] = CUSTOM_INSTRUCTIONS
-    
-    # Create and return the Memory client
-    return Memory.from_config(config)
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
 
-def close_mem0_client(client: Memory) -> None:
-    """Attempt to gracefully close a Mem0 client and its resources."""
-    if client is None:
-        return
+def get_mem0_client() -> AsyncMemoryClient:
+    """Instantiate an async Mem0 Cloud client from environment variables."""
 
-    # Try common close semantics on the client itself
-    for method_name in ("close", "dispose", "shutdown"):
-        close_method = getattr(client, method_name, None)
-        if callable(close_method):
-            try:
-                close_method()
-            except Exception:
-                pass
+    api_key = os.getenv("MEM0_API_KEY")
+    if not api_key:
+        raise ValueError("MEM0_API_KEY environment variable is required")
+    base_url = os.getenv("MEM0_BASE_URL", "https://api.mem0.ai")
 
-    # Attempt to close nested objects such as vector stores or DB pools
-    vector_store = getattr(client, "vector_store", None)
-    if vector_store is not None:
-        for method_name in ("close", "dispose", "shutdown"):
-            close_method = getattr(vector_store, method_name, None)
-            if callable(close_method):
-                try:
-                    close_method()
-                except Exception:
-                    pass
+    return AsyncMemoryClient(api_key=api_key, base_url=base_url)
 
-        db = getattr(vector_store, "db", None)
-        if db is not None:
-            for method_name in ("close", "dispose", "shutdown"):
-                close_method = getattr(db, method_name, None)
-                if callable(close_method):
-                    try:
-                        close_method()
-                    except Exception:
-                        pass
+
+async def close_mem0_client(client: AsyncMemoryClient) -> None:
+    """Close the HTTP client used by :class:`AsyncMemoryClient`."""
+    if client is not None:
+        await client.aclose()
