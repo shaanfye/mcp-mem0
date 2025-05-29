@@ -10,7 +10,7 @@ Use this as a reference point to build your MCP servers yourself, or give this a
 
 ## Overview
 
-This project demonstrates how to build an MCP server that enables AI agents to store, retrieve, and search memories using semantic search. It serves as a practical template for creating your own MCP servers, simply using Mem0 and a practical example.
+This project demonstrates how to build an MCP server that enables AI agents to store, retrieve, and search memories using semantic search. It uses the hosted **Mem0 Cloud** platform via API key for persistence.
 
 The implementation follows the best practices laid out by Anthropic for building MCP servers, allowing seamless integration with any MCP-compatible client.
 
@@ -22,9 +22,9 @@ The server provides three essential memory management tools:
 2. **`get_all_memories`**: Retrieve all stored memories for comprehensive context
 3. **`search_memories`**: Find relevant memories using semantic search
 
-All tools accept a `memory_type` parameter so you can keep separate collections
-for regular memories and notes. The default collection is `mem0_memories` and
-passing `memory_type="notes"` uses the `mem0_notes` collection.
+All tools accept a `memory_type` parameter so you can keep separate categories
+for regular memories and notes. Pass `memory_type="note"` to store and search
+notes, otherwise the default `memory` category is used.
 
 `save_memory` also accepts `message_number` and `date` parameters, which are
 stored as metadata alongside the text for later reference.
@@ -32,8 +32,7 @@ stored as metadata alongside the text for later reference.
 ## Prerequisites
 
 - Python 3.12+
-- Supabase or any PostgreSQL database (for vector storage of memories)
-- API keys for your chosen LLM provider (OpenAI, OpenRouter, or Ollama)
+- A Mem0 Cloud account and API key
 - Docker if running the MCP server as a container (recommended)
 
 ## Installation
@@ -81,14 +80,10 @@ The following environment variables can be configured in your `.env` file:
 | `TRANSPORT` | Transport protocol (sse or stdio) | `sse` |
 | `HOST` | Host to bind to when using SSE transport | `0.0.0.0` |
 | `PORT` | Port to listen on when using SSE transport | `8050` |
-| `LLM_PROVIDER` | LLM provider (openai, openrouter, or ollama) | `openai` |
-| `LLM_BASE_URL` | Base URL for the LLM API | `https://api.openai.com/v1` |
-| `LLM_API_KEY` | API key for the LLM provider | `sk-...` |
-| `LLM_CHOICE` | LLM model to use | `gpt-4o-mini` |
-| `EMBEDDING_MODEL_CHOICE` | Embedding model to use | `text-embedding-3-small` |
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:port/db` |
+| `MEM0_API_KEY` | API key for Mem0 Cloud | `mem0-...` |
+| `MEM0_BASE_URL` | Base URL for Mem0 Cloud API | `https://api.mem0.ai` |
+| `DEFAULT_USER_ID` | Default user identifier when not provided | `user` |
 
-Make sure to use the `postgresql://` scheme exactly—`postgres://` will fail validation.
 
 ## Running the Server
 
@@ -168,12 +163,8 @@ Add this server to your MCP configuration for Claude Desktop, Windsurf, or any o
       "args": ["your/path/to/mcp-mem0/src/main.py"],
       "env": {
         "TRANSPORT": "stdio",
-        "LLM_PROVIDER": "openai",
-        "LLM_BASE_URL": "https://api.openai.com/v1",
-        "LLM_API_KEY": "YOUR-API-KEY",
-        "LLM_CHOICE": "gpt-4o-mini",
-        "EMBEDDING_MODEL_CHOICE": "text-embedding-3-small",
-        "DATABASE_URL": "YOUR-DATABASE-URL"
+        "MEM0_API_KEY": "YOUR-MEM0-API-KEY",
+        "MEM0_BASE_URL": "https://api.mem0.ai"
       }
     }
   }
@@ -187,23 +178,15 @@ Add this server to your MCP configuration for Claude Desktop, Windsurf, or any o
   "mcpServers": {
     "mem0": {
       "command": "docker",
-      "args": ["run", "--rm", "-i", 
-               "-e", "TRANSPORT", 
-               "-e", "LLM_PROVIDER", 
-               "-e", "LLM_BASE_URL", 
-               "-e", "LLM_API_KEY", 
-               "-e", "LLM_CHOICE", 
-               "-e", "EMBEDDING_MODEL_CHOICE", 
-               "-e", "DATABASE_URL", 
+      "args": ["run", "--rm", "-i",
+               "-e", "TRANSPORT",
+               "-e", "MEM0_API_KEY",
+               "-e", "MEM0_BASE_URL",
                "mcp/mem0"],
       "env": {
         "TRANSPORT": "stdio",
-        "LLM_PROVIDER": "openai",
-        "LLM_BASE_URL": "https://api.openai.com/v1",
-        "LLM_API_KEY": "YOUR-API-KEY",
-        "LLM_CHOICE": "gpt-4o-mini",
-        "EMBEDDING_MODEL_CHOICE": "text-embedding-3-small",
-        "DATABASE_URL": "YOUR-DATABASE-URL"
+        "MEM0_API_KEY": "YOUR-MEM0-API-KEY",
+        "MEM0_BASE_URL": "https://api.mem0.ai"
       }
     }
   }
