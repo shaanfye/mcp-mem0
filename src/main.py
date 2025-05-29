@@ -10,7 +10,8 @@ import json
 import logging
 import os
 
-from utils import AsyncMemoryClient, get_mem0_client, close_mem0_client
+from mem0 import AsyncMemoryClient
+from utils import get_mem0_client, close_mem0_client
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO)
