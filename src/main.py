@@ -21,7 +21,8 @@ DEFAULT_USER_ID = os.getenv("DEFAULT_USER_ID", "user")
 @dataclass
 class Mem0Context:
     """Context for the Mem0 MCP server."""
-    mem0_client: Memory
+    memory_client: Memory
+    notes_client: Memory
 
 @asynccontextmanager
 async def mem0_lifespan(server: FastMCP) -> AsyncIterator[Mem0Context]:
@@ -34,11 +35,12 @@ async def mem0_lifespan(server: FastMCP) -> AsyncIterator[Mem0Context]:
     Yields:
         Mem0Context: The context containing the Mem0 client
     """
-    # Create and return the Memory client with the helper function in utils.py
-    mem0_client = get_mem0_client()
+    # Create Memory clients for main conversations and notes
+    memory_client = get_mem0_client("mem0_memories")
+    notes_client = get_mem0_client("mem0_notes")
     
     try:
-        yield Mem0Context(mem0_client=mem0_client)
+        yield Mem0Context(memory_client=memory_client, notes_client=notes_client)
     finally:
         # No explicit cleanup needed for the Mem0 client
         pass
@@ -53,70 +55,127 @@ mcp = FastMCP(
 )        
 
 @mcp.tool()
-async def save_memory(ctx: Context, text: str, user_id: str = DEFAULT_USER_ID) -> str:
+async def save_memory(
+    ctx: Context,
+    text: str,
+    memory_type: str = "memory",
+    user_id: str = DEFAULT_USER_ID,
+    message_number: int | None = None,
+    date: str | None = None,
+) -> str:
     """Save information to your long-term memory.
 
     This tool is designed to store any type of information that might be useful in the future.
     The content will be processed and indexed for later retrieval through semantic search.
 
     Args:
-        ctx: The MCP server provided context which includes the Mem0 client
-        text: The content to store in memory, including any relevant details and context
+        ctx: The MCP server provided context which includes the Mem0 clients
+        text: The content to store in memory or notes
+        memory_type: Either "memory" or "notes" to select the collection
         user_id: Identifier for the user whose memory should be updated
+        message_number: The message number associated with this text
+        date: The date the message was sent
     """
     try:
-        mem0_client = ctx.request_context.lifespan_context.mem0_client
-        messages = [{"role": "user", "content": text}]
-        mem0_client.add(messages, user_id=user_id)
+        if memory_type == "notes":
+            mem0_client = ctx.request_context.lifespan_context.notes_client
+        else:
+            mem0_client = ctx.request_context.lifespan_context.memory_client
+
+        metadata = {
+            "id": user_id,
+            "message_number": message_number,
+            "date": date,
+        }
+
+        messages = [
+            {
+                "role": "user",
+                "content": text,
+                "metadata": metadata,
+            }
+        ]
+
+        mem0_client.add(messages, user_id=user_id, metadatas=[metadata])
         return f"Successfully saved memory: {text[:100]}..." if len(text) > 100 else f"Successfully saved memory: {text}"
     except Exception as e:
         return f"Error saving memory: {str(e)}"
 
 @mcp.tool()
-async def get_all_memories(ctx: Context, user_id: str = DEFAULT_USER_ID) -> str:
+async def get_all_memories(
+    ctx: Context,
+    memory_type: str = "memory",
+    user_id: str = DEFAULT_USER_ID,
+) -> str:
     """Get all stored memories for the user.
     
     Call this tool when you need complete context of all previously memories.
 
     Args:
-        ctx: The MCP server provided context which includes the Mem0 client
+        ctx: The MCP server provided context which includes the Mem0 clients
+        memory_type: Either "memory" or "notes" to select the collection
         user_id: Identifier for the user whose memories should be returned
 
     Returns a JSON formatted list of all stored memories, including when they were created
     and their content. Results are paginated with a default of 50 items per page.
     """
     try:
-        mem0_client = ctx.request_context.lifespan_context.mem0_client
+        if memory_type == "notes":
+            mem0_client = ctx.request_context.lifespan_context.notes_client
+        else:
+            mem0_client = ctx.request_context.lifespan_context.memory_client
         memories = mem0_client.get_all(user_id=user_id)
         if isinstance(memories, dict) and "results" in memories:
-            flattened_memories = [memory["memory"] for memory in memories["results"]]
+            formatted = []
+            for memory in memories["results"]:
+                entry = {
+                    "memory": memory.get("memory"),
+                    "metadata": memory.get("metadata"),
+                }
+                formatted.append(entry)
         else:
-            flattened_memories = memories
-        return json.dumps(flattened_memories, indent=2)
+            formatted = memories
+        return json.dumps(formatted, indent=2)
     except Exception as e:
         return f"Error retrieving memories: {str(e)}"
 
 @mcp.tool()
-async def search_memories(ctx: Context, query: str, limit: int = 3, user_id: str = DEFAULT_USER_ID) -> str:
+async def search_memories(
+    ctx: Context,
+    query: str,
+    limit: int = 3,
+    memory_type: str = "memory",
+    user_id: str = DEFAULT_USER_ID,
+) -> str:
     """Search memories using semantic search.
 
     This tool should be called to find relevant information from your memory. Results are ranked by relevance.
     Always search your memories before making decisions to ensure you leverage your existing knowledge.
 
     Args:
-        ctx: The MCP server provided context which includes the Mem0 client
+        ctx: The MCP server provided context which includes the Mem0 clients
         query: Search query string describing what you're looking for. Can be natural language.
         limit: Maximum number of results to return (default: 3)
+        memory_type: Either "memory" or "notes" to select the collection
         user_id: Identifier for the user whose memories should be searched
     """
     try:
-        mem0_client = ctx.request_context.lifespan_context.mem0_client
+        if memory_type == "notes":
+            mem0_client = ctx.request_context.lifespan_context.notes_client
+        else:
+            mem0_client = ctx.request_context.lifespan_context.memory_client
         memories = mem0_client.search(query, user_id=user_id, limit=limit)
         if isinstance(memories, dict) and "results" in memories:
-            flattened_memories = [memory["memory"] for memory in memories["results"]]
+            formatted = []
+            for memory in memories["results"]:
+                entry = {
+                    "memory": memory.get("memory"),
+                    "metadata": memory.get("metadata"),
+                }
+                formatted.append(entry)
         else:
-            flattened_memories = memories
-        return json.dumps(flattened_memories, indent=2)
+            formatted = memories
+        return json.dumps(formatted, indent=2)
     except Exception as e:
         return f"Error searching memories: {str(e)}"
 
