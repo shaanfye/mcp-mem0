@@ -100,3 +100,39 @@ def get_mem0_client(collection_name: str = "mem0_memories"):
     
     # Create and return the Memory client
     return Memory.from_config(config)
+
+
+def close_mem0_client(client: Memory) -> None:
+    """Attempt to gracefully close a Mem0 client and its resources."""
+    if client is None:
+        return
+
+    # Try common close semantics on the client itself
+    for method_name in ("close", "dispose", "shutdown"):
+        close_method = getattr(client, method_name, None)
+        if callable(close_method):
+            try:
+                close_method()
+            except Exception:
+                pass
+
+    # Attempt to close nested objects such as vector stores or DB pools
+    vector_store = getattr(client, "vector_store", None)
+    if vector_store is not None:
+        for method_name in ("close", "dispose", "shutdown"):
+            close_method = getattr(vector_store, method_name, None)
+            if callable(close_method):
+                try:
+                    close_method()
+                except Exception:
+                    pass
+
+        db = getattr(vector_store, "db", None)
+        if db is not None:
+            for method_name in ("close", "dispose", "shutdown"):
+                close_method = getattr(db, method_name, None)
+                if callable(close_method):
+                    try:
+                        close_method()
+                    except Exception:
+                        pass

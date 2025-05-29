@@ -8,7 +8,7 @@ import asyncio
 import json
 import os
 
-from utils import get_mem0_client
+from utils import get_mem0_client, close_mem0_client
 
 load_dotenv()
 
@@ -42,8 +42,8 @@ async def mem0_lifespan(server: FastMCP) -> AsyncIterator[Mem0Context]:
     try:
         yield Mem0Context(memory_client=memory_client, notes_client=notes_client)
     finally:
-        # No explicit cleanup needed for the Mem0 client
-        pass
+        close_mem0_client(memory_client)
+        close_mem0_client(notes_client)
 
 # Initialize FastMCP server with the Mem0 client as context
 mcp = FastMCP(
