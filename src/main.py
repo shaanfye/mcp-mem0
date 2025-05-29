@@ -55,7 +55,14 @@ mcp = FastMCP(
 )        
 
 @mcp.tool()
-async def save_memory(ctx: Context, text: str, memory_type: str = "memory", user_id: str = DEFAULT_USER_ID) -> str:
+async def save_memory(
+    ctx: Context,
+    text: str,
+    memory_type: str = "memory",
+    user_id: str = DEFAULT_USER_ID,
+    message_number: int | None = None,
+    date: str | None = None,
+) -> str:
     """Save information to your long-term memory.
 
     This tool is designed to store any type of information that might be useful in the future.
@@ -66,20 +73,40 @@ async def save_memory(ctx: Context, text: str, memory_type: str = "memory", user
         text: The content to store in memory or notes
         memory_type: Either "memory" or "notes" to select the collection
         user_id: Identifier for the user whose memory should be updated
+        message_number: The message number associated with this text
+        date: The date the message was sent
     """
     try:
         if memory_type == "notes":
             mem0_client = ctx.request_context.lifespan_context.notes_client
         else:
             mem0_client = ctx.request_context.lifespan_context.memory_client
-        messages = [{"role": "user", "content": text}]
-        mem0_client.add(messages, user_id=user_id)
+
+        metadata = {
+            "id": user_id,
+            "message_number": message_number,
+            "date": date,
+        }
+
+        messages = [
+            {
+                "role": "user",
+                "content": text,
+                "metadata": metadata,
+            }
+        ]
+
+        mem0_client.add(messages, user_id=user_id, metadatas=[metadata])
         return f"Successfully saved memory: {text[:100]}..." if len(text) > 100 else f"Successfully saved memory: {text}"
     except Exception as e:
         return f"Error saving memory: {str(e)}"
 
 @mcp.tool()
-async def get_all_memories(ctx: Context, memory_type: str = "memory", user_id: str = DEFAULT_USER_ID) -> str:
+async def get_all_memories(
+    ctx: Context,
+    memory_type: str = "memory",
+    user_id: str = DEFAULT_USER_ID,
+) -> str:
     """Get all stored memories for the user.
     
     Call this tool when you need complete context of all previously memories.
@@ -99,15 +126,27 @@ async def get_all_memories(ctx: Context, memory_type: str = "memory", user_id: s
             mem0_client = ctx.request_context.lifespan_context.memory_client
         memories = mem0_client.get_all(user_id=user_id)
         if isinstance(memories, dict) and "results" in memories:
-            flattened_memories = [memory["memory"] for memory in memories["results"]]
+            formatted = []
+            for memory in memories["results"]:
+                entry = {
+                    "memory": memory.get("memory"),
+                    "metadata": memory.get("metadata"),
+                }
+                formatted.append(entry)
         else:
-            flattened_memories = memories
-        return json.dumps(flattened_memories, indent=2)
+            formatted = memories
+        return json.dumps(formatted, indent=2)
     except Exception as e:
         return f"Error retrieving memories: {str(e)}"
 
 @mcp.tool()
-async def search_memories(ctx: Context, query: str, limit: int = 3, memory_type: str = "memory", user_id: str = DEFAULT_USER_ID) -> str:
+async def search_memories(
+    ctx: Context,
+    query: str,
+    limit: int = 3,
+    memory_type: str = "memory",
+    user_id: str = DEFAULT_USER_ID,
+) -> str:
     """Search memories using semantic search.
 
     This tool should be called to find relevant information from your memory. Results are ranked by relevance.
@@ -127,10 +166,16 @@ async def search_memories(ctx: Context, query: str, limit: int = 3, memory_type:
             mem0_client = ctx.request_context.lifespan_context.memory_client
         memories = mem0_client.search(query, user_id=user_id, limit=limit)
         if isinstance(memories, dict) and "results" in memories:
-            flattened_memories = [memory["memory"] for memory in memories["results"]]
+            formatted = []
+            for memory in memories["results"]:
+                entry = {
+                    "memory": memory.get("memory"),
+                    "metadata": memory.get("metadata"),
+                }
+                formatted.append(entry)
         else:
-            flattened_memories = memories
-        return json.dumps(flattened_memories, indent=2)
+            formatted = memories
+        return json.dumps(formatted, indent=2)
     except Exception as e:
         return f"Error searching memories: {str(e)}"
 

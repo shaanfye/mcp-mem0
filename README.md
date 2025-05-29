@@ -26,6 +26,9 @@ All tools accept a `memory_type` parameter so you can keep separate collections
 for regular memories and notes. The default collection is `mem0_memories` and
 passing `memory_type="notes"` uses the `mem0_notes` collection.
 
+`save_memory` also accepts `message_number` and `date` parameters, which are
+stored as metadata alongside the text for later reference.
+
 ## Prerequisites
 
 - Python 3.12+
@@ -84,6 +87,8 @@ The following environment variables can be configured in your `.env` file:
 | `LLM_CHOICE` | LLM model to use | `gpt-4o-mini` |
 | `EMBEDDING_MODEL_CHOICE` | Embedding model to use | `text-embedding-3-small` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:port/db` |
+
+Make sure to use the `postgresql://` scheme exactly—`postgres://` will fail validation.
 
 ## Running the Server
 
