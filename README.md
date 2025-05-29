@@ -87,6 +87,8 @@ The following environment variables can be configured in your `.env` file:
 | `LLM_CHOICE` | LLM model to use | `gpt-4o-mini` |
 | `EMBEDDING_MODEL_CHOICE` | Embedding model to use | `text-embedding-3-small` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@host:port/db` |
+| `DB_POOL_SIZE` | SQLAlchemy pool size for DB connections | `5` |
+| `DB_MAX_OVERFLOW` | Additional connections beyond the pool size | `0` |
 
 Make sure to use the `postgresql://` scheme exactly—`postgres://` will fail validation.
 
