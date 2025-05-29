@@ -14,7 +14,7 @@ Extract the Following Information:
 - Source: Record where this information came from when applicable.
 """
 
-def get_mem0_client():
+def get_mem0_client(collection_name: str = "mem0_memories"):
     # Get LLM provider and configuration
     llm_provider = os.getenv('LLM_PROVIDER')
     llm_api_key = os.getenv('LLM_API_KEY')
@@ -91,7 +91,7 @@ def get_mem0_client():
         "provider": "supabase",
         "config": {
             "connection_string": os.environ.get('DATABASE_URL', ''),
-            "collection_name": "mem0_memories",
+            "collection_name": collection_name,
             "embedding_model_dims": 1536 if llm_provider == "openai" else 768
         }
     }
